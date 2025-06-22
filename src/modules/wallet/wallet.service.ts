@@ -33,8 +33,6 @@ export class WalletService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  //   server: Server;
-
   async processPlayRequest(playRequest: PlayRequestDto): Promise<PlayResponse> {
     try {
       let { user_id, currency, game, game_id, finished, actions } = playRequest;
@@ -46,18 +44,9 @@ export class WalletService {
           HttpStatus.NOT_FOUND,
         );
       }
-      if (actions && actions.length > 0) {
-        // const checkDoubleBets = actions.filter(
-        //   (action) => action.action === 'bet',
-        // );
-        // if (checkDoubleBets.length > 1) {
-        //   const errorResponse = {
-        //     code: 100, // Use 100 for multiple bet scenarios
-        //     message: 'Not enough funds.',
-        //   };
-        //   throw new HttpException(errorResponse, 412);
-        // }
 
+      // If actions are provided, run validations on them
+      if (actions && actions.length > 0) {
         const actionIds = actions.map((action) => action.action_id);
         const duplicateIds = await this.checkDuplicateActions(actionIds);
 
@@ -90,9 +79,6 @@ export class WalletService {
       console.log('Actions: ', playRequest);
 
       for (const action of actions || []) {
-        // throw new HttpException({ code: 100, message: 'User not found' }, 404);
-
-        console.log('Processing action:', action);
         const checkTransaction =
           await this.transactionsService.getTransactionByActionId(
             user_id,
@@ -111,9 +97,7 @@ export class WalletService {
         } else if (action.action === 'win') {
           await this.processWin(user_id, action.amount);
         }
-        //   else if (action.action === 'rollback') {
-        //     await this.processRollback(user_id, action.original_action_id);
-        //   }
+
         const transaction = await this.transactionsService.createTransaction({
           user_id,
           game_id,
@@ -199,7 +183,7 @@ export class WalletService {
             console.log('Processing bet rollback');
             await this.balanceService.updateUserBalance(
               rollbackRequest.user_id,
-              Math.abs(originalTransaction.amount), // Add back the bet amount
+              originalTransaction.amount, // Add back the bet amount
             );
           }
 
@@ -207,7 +191,7 @@ export class WalletService {
             console.log('Processing win rollback');
             await this.balanceService.updateUserBalance(
               rollbackRequest.user_id,
-              -Math.abs(originalTransaction.amount), // Subtract the win amount
+              -originalTransaction.amount, // Subtract the win amount
             );
           }
 
@@ -253,10 +237,10 @@ export class WalletService {
 
   async processBet(userId: string, amount: number) {
     try {
-      console.log('Processing bet for user:', userId, 'amount:', amount);
+      this.logger.log('Processing bet for user:', userId, 'amount:', amount);
       const usersBalance = await this.balanceService.getUserBalance(userId);
       if (usersBalance < amount) {
-        console.log('Throwing insufficient balance error');
+        this.logger.warn('Throwing insufficient balance error');
         const errorResponse = {
           code: 100,
           message: 'Not enough funds.',
@@ -264,6 +248,7 @@ export class WalletService {
         };
         throw new HttpException(errorResponse, 400);
       }
+      // I use -amount here to deduct the bet amount did not used decrease/increase functions and create only 1 updateUserBalance function for simplicity
       await this.balanceService.updateUserBalance(userId, -amount);
     } catch (error) {
       throw error;
@@ -277,12 +262,6 @@ export class WalletService {
     try {
       const gcpUrl = this.configService.getOrThrow<string>('GCP_URL');
       const key = this.configService.getOrThrow<string>('GCP_KEY');
-      if (!gcpUrl) {
-        throw new HttpException(
-          'GCP_URL configuration is missing',
-          HttpStatus.INTERNAL_SERVER_ERROR,
-        );
-      }
 
       const user = await this.usersService.getUserById(sessionData.userId);
       if (!user) {
@@ -338,12 +317,6 @@ export class WalletService {
       return response.data;
     } catch (error) {
       this.logger.error('Failed to start game session:', error);
-      if (error.response) {
-        throw new HttpException(
-          `GCP service error: ${error.response.data?.message || error.response.statusText}`,
-          error.response.status,
-        );
-      }
       throw error;
     }
   }
@@ -362,7 +335,7 @@ export class WalletService {
         },
       }),
     );
-    this.redisService.set('games', JSON.stringify(response.data), 3600); // 1 hour TTL
+    this.redisService.set('games', JSON.stringify(response.data), 3600); // 1 hour TTL in case of new games are added
     return response.data;
   }
 
@@ -404,7 +377,7 @@ export class WalletService {
         if (existingAction.type === 'tombstone') {
           transactions.push({
             action_id: duplicateIds[i],
-            tx_id: '', // Empty for tombstoned actions
+            tx_id: '', // Empty transaction id for tombstoned actions
             processed_at: existingAction.processed_at,
           });
         } else {
@@ -432,7 +405,7 @@ export class WalletService {
   }
 
   private async checkDuplicateActions(actionIds: string[]): Promise<string[]> {
-    const keys = actionIds.map((id) => `action:${id}`);
+    const keys = actionIds.map((id) => `${ACTION_PREFIX}:${id}`);
     const results = await this.redisService.mget(keys);
 
     return actionIds.filter((_, index) => results[index] !== null);

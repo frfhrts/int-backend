@@ -9,11 +9,13 @@ import { WalletModule } from './modules/wallet/wallet.module';
 import { CommonModule } from './common/common.module';
 import { NotFoundLoggingMiddleware } from './common/middleware/not-found-logging.middleware';
 import { WebsocketsModule } from './modules/websockets/websockets.module';
+import { JoiSchema } from './utils/joi.schema';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      validationSchema: JoiSchema,
     }),
     CommonModule,
     UsersModule,

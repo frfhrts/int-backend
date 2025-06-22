@@ -23,9 +23,6 @@ async function bootstrap() {
   // Enable CORS
   app.enableCors();
 
-  // Global prefix (optional)
-  // app.setGlobalPrefix('api');
-
   const config = new DocumentBuilder()
     .setTitle('Stake Backend API')
     .setDescription('API documentation for the Stake Backend application')

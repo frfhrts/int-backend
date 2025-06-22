@@ -7,37 +7,41 @@ import { BALANCE_PREFIX } from 'src/utils/constants';
 
 @Injectable()
 export class UsersService {
-  usersList: Map<string, User> = new Map();
+  private usersList: Map<string, User> = new Map();
   private readonly logger = new Logger(UsersService.name);
   constructor(private readonly redisService: RedisService) {
-    // this.createNewUser()
-    this.loadUsersFromRedis();
+    // this.loadUsersFromRedis();
   }
 
-  async loadUsersFromRedis() {
-    console.log('Loading users from Redis');
-    const userKeys = await this.redisService.keys(`${BALANCE_PREFIX}:*`);
-    // console.log('User keys:', userKeys);
-    for (const key of userKeys) {
-      const userId = key.split(':')[1];
-      const userData = await this.redisService.get(key);
-      // console.log('User data:', userData);
-      if (userData) {
-        this.usersList.set(userId, {
-          user_id: userId,
-          firstname: 'John',
-          lastname: 'Doe',
-          nickname: `JohnDoe-${uuidv4().slice(0, 8)}`,
-          city: 'New York',
-          date_of_birth: '1990-01-01',
-          registered_at: new Date().toISOString(),
-          gender: 'm',
-          country: 'US',
-        });
-      }
-    }
-  }
+  // FOR LOCAL TESTING & DEVELOPMENT USE THIS FUNCTION TO LOAD USERS FROM REDIS TO HASHMAP
+  // async loadUsersFromRedis() {
+  //   console.log('Loading users from Redis');
+  //   const userKeys = await this.redisService.keys(`${BALANCE_PREFIX}:*`);
 
+  //   for (const key of userKeys) {
+  //     const userId = key.split(':')[1];
+  //     const userData = await this.redisService.get(key);
+
+  //     if (userData) {
+  //       this.usersList.set(userId, {
+  //         user_id: userId,
+  //         firstname: 'John',
+  //         lastname: 'Doe',
+  //         nickname: `JohnDoe-${uuidv4().slice(0, 8)}`,
+  //         city: 'New York',
+  //         date_of_birth: '1990-01-01',
+  //         registered_at: new Date().toISOString(),
+  //         gender: 'm',
+  //         country: 'US',
+  //       });
+  //     }
+  //   }
+  // }
+
+  // When user connects to websocket and no userId is provided, this function creaates a new user
+  // and returns the user object with a default balance.
+  // This is for local testing and development purposes only.
+  // In production, user creation should be handled through a registration process.
   async createNewUser() {
     try {
       const newUser: User = {
@@ -63,17 +67,21 @@ export class UsersService {
   }
 
   async getUserById(userId: string) {
-    const user = this.usersList.get(userId);
-    if (!user) {
-      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    try {
+      const user = this.usersList.get(userId);
+      if (!user) {
+        throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+      }
+      const userBalance = await this.redisService.get(
+        `${BALANCE_PREFIX}:${userId}`,
+      );
+      return {
+        ...user,
+        balance: parseFloat(userBalance || '0'),
+      };
+    } catch (error) {
+      throw error;
     }
-    const userBalance = await this.redisService.get(
-      `${BALANCE_PREFIX}:${userId}`,
-    );
-    return {
-      ...user,
-      balance: parseFloat(userBalance || '0'),
-    };
   }
 
   getAllUsers() {

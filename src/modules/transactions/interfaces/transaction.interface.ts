@@ -1,14 +1,3 @@
-// export interface Transaction {
-//   id: string;
-//   user_id: string;
-//   game_id: string;
-//   amount: number;
-//   type: string;
-//   currency: string;
-//   status: string;
-//   createdAt: string;
-// }
-
 export interface Transaction {
   id: string;
   user_id: string;

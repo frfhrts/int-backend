@@ -19,23 +19,22 @@ export class WebsocketsGateway {
 
   async handleConnection(client: any) {
     this.logger.log('Client connected');
-    console.log('Client Data: ', client.handshake.query);
-    console.log('Client Data: ', client.handshake.headers);
+    this.logger.log('Client Data: ', client.handshake.query);
+    this.logger.log('Client Data: ', client.handshake.headers);
     let user = await this.usersService
       .getUserById(client.handshake.query.userId)
-      .catch((error) => {
+      .catch(() => {
         return null;
       });
     if (!user) {
       const newUser = await this.usersService.createNewUser();
       user = newUser;
     }
-    // 🎯 JOIN USER TO THEIR PERSONAL ROOM
+    //  Join user to personal room for future updates notifications
     const userRoom = `user_${user.user_id}`;
     client.join(userRoom);
     this.logger.log(`User ${user.user_id} joined room: ${userRoom}`);
 
-    // Store user_id in socket data for easy access
     client.data.userId = user.user_id;
 
     client.emit(Channels.USER_DATA, user);

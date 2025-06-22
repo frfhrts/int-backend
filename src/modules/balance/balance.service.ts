@@ -4,9 +4,9 @@ import { BALANCE_PREFIX } from 'src/utils/constants';
 
 @Injectable()
 export class BalanceService {
-  private readonly DEFAULT_BALANCE = 1000;
   constructor(private readonly redisService: RedisService) {}
 
+  // Balance conversion is not implemented, every currency is same rate as other
   async getUserBalance(userId: string) {
     const balanceKey = `${BALANCE_PREFIX}:${userId}`;
     const balance = await this.redisService.get(balanceKey);
