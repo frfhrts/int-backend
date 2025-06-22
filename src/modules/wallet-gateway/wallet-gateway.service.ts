@@ -14,6 +14,10 @@ import { firstValueFrom } from 'rxjs';
 import { RollbackRequestDto } from './dtos/rollback-request.dto';
 import { ACTION_PREFIX } from 'src/utils/constants';
 import { RedisService } from '../redis/redis.service';
+import { Server } from 'socket.io';
+import { WebSocketServer } from '@nestjs/websockets';
+import { Channels } from 'src/utils/enums/channels.enum';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class WalletGatewayService {
@@ -26,7 +30,10 @@ export class WalletGatewayService {
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
+
+  //   server: Server;
 
   async processPlayRequest(playRequest: PlayRequestDto): Promise<PlayResponse> {
     try {
@@ -36,7 +43,35 @@ export class WalletGatewayService {
       if (!user) {
         throw new HttpException('User not found', HttpStatus.NOT_FOUND);
       }
-      console.log('ActionsList: ', playRequest);
+      if (actions && actions.length > 0) {
+        const actionIds = actions.map((action) => action.action_id);
+        const duplicateIds = await this.checkDuplicateActions(actionIds);
+
+        if (duplicateIds.length > 0) {
+          // Return original response for duplicate/tombstoned actions
+          return await this.getOriginalResponse(duplicateIds, user_id);
+        }
+
+        const totalBetAmount = actions
+          .filter((action) => action.action === 'bet')
+          .reduce((sum, action) => sum + action.amount, 0);
+
+        // Check if user has enough balance for ALL bets
+        const currentBalance =
+          await this.balanceService.getUserBalance(user_id);
+        if (totalBetAmount > 0 && currentBalance < totalBetAmount) {
+          console.log(
+            'Throwing insufficient balance error - total bets exceed balance',
+          );
+          const errorResponse = {
+            code: 100, // Use 100 for multiple bet scenarios
+            message: 'Not enough funds.',
+            balance: currentBalance,
+          };
+          throw new HttpException(errorResponse, 412);
+        }
+      }
+
       const transactions: TransactionResponse[] = [];
       for (const action of actions || []) {
         console.log('Processing action:', action);
@@ -79,6 +114,10 @@ export class WalletGatewayService {
       }
 
       const balance = await this.balanceService.getUserBalance(user_id);
+      this.eventEmitter.emit(Channels.BALANCE_UPDATE, {
+        userId: user_id,
+        balance,
+      });
       return {
         balance,
         game_id,
@@ -100,53 +139,84 @@ export class WalletGatewayService {
         `Processing rollback for user: ${rollbackRequest.user_id}`,
       );
       const transactions: TransactionResponse[] = [];
-      const userBalance = await this.balanceService.getUserBalance(
-        rollbackRequest.user_id,
-      );
+
       for (const action of rollbackRequest.actions) {
         this.logger.debug(
           `Processing rollback for action: ${JSON.stringify(action)}`,
         );
+
         const originalTransaction =
           await this.transactionsService.getTransactionByActionId(
             rollbackRequest.user_id,
             action.original_action_id,
           );
+
         console.log('Original transaction:', originalTransaction);
+
         if (!originalTransaction) {
-          return {
-            balance: userBalance,
+          // No original transaction exists - create tombstone to prevent future processing
+          const tombstoneKey = `action:${action.original_action_id}`;
+          await this.redisService.set(
+            tombstoneKey,
+            JSON.stringify({
+              type: 'tombstone',
+              rollback_action_id: action.action_id,
+              processed_at: new Date().toISOString(),
+              game_id: rollbackRequest.game_id,
+            }),
+          );
+
+          transactions.push({
+            action_id: action.action_id,
+            tx_id: '',
+            processed_at: new Date().toISOString(),
+          });
+        } else {
+          // Original transaction exists - process the rollback
+          if (originalTransaction.action_type === 'bet') {
+            console.log('Processing bet rollback');
+            await this.balanceService.updateUserBalance(
+              rollbackRequest.user_id,
+              Math.abs(originalTransaction.amount), // Add back the bet amount
+            );
+          }
+
+          if (originalTransaction.action_type === 'win') {
+            console.log('Processing win rollback');
+            await this.balanceService.updateUserBalance(
+              rollbackRequest.user_id,
+              -Math.abs(originalTransaction.amount), // Subtract the win amount
+            );
+          }
+
+          transactions.push({
+            action_id: action.action_id,
+            tx_id: originalTransaction.id,
+            processed_at: new Date().toISOString(), // Current time
+          });
+        }
+
+        // Mark rollback as processed to prevent duplicates
+        const rollbackKey = `action:${action.action_id}`;
+        await this.redisService.set(
+          rollbackKey,
+          JSON.stringify({
+            type: 'rollback',
+            original_action_id: action.original_action_id,
+            processed_at: new Date().toISOString(),
             game_id: rollbackRequest.game_id,
-            transactions: [
-              {
-                action_id: action.action_id,
-                tx_id: '',
-                processed_at: new Date().toISOString(),
-              },
-            ],
-          };
-        }
-        if (originalTransaction.action_type === 'bet') {
-          console.log('Processing bet rollback');
-          await this.balanceService.updateUserBalance(
-            rollbackRequest.user_id,
-            originalTransaction.amount,
-          );
-        }
-        if (originalTransaction.action_type === 'win') {
-          console.log('Processing win rollback');
-          await this.balanceService.updateUserBalance(
-            rollbackRequest.user_id,
-            -originalTransaction.amount,
-          );
-        }
-        transactions.push({
-          action_id: action.action_id,
-          tx_id: originalTransaction.id,
-          processed_at: originalTransaction.processed_at,
-        });
+          }),
+        );
       }
 
+      const userBalance = await this.balanceService.getUserBalance(
+        rollbackRequest.user_id,
+      );
+
+      this.eventEmitter.emit(Channels.BALANCE_UPDATE, {
+        userId: rollbackRequest.user_id,
+        balance: userBalance,
+      });
       return {
         balance: userBalance,
         game_id: rollbackRequest.game_id,
@@ -167,8 +237,8 @@ export class WalletGatewayService {
     if (usersBalance < amount) {
       console.log('Throwing insufficient balance error');
       const errorResponse = {
-        code: 100,
-        message: 'Not enough funds.',
+        code: 700,
+        message: 'Requested live game is not available right now',
         balance: usersBalance,
       };
       throw new HttpException(errorResponse, 412);
@@ -280,5 +350,57 @@ export class WalletGatewayService {
       return null;
     }
     return JSON.parse(action);
+  }
+
+  private async getOriginalResponse(
+    duplicateIds: string[],
+    userId: string,
+  ): Promise<PlayResponse> {
+    const keys = duplicateIds.map((id) => `action:${id}`);
+    const results = await this.redisService.mget(keys);
+
+    const transactions: TransactionResponse[] = [];
+    let game_id = '';
+
+    for (let i = 0; i < results.length; i++) {
+      if (results[i]) {
+        const existingAction = JSON.parse(results[i] as string);
+
+        // If this is a tombstone, return empty tx_id and don't change balance
+        if (existingAction.type === 'tombstone') {
+          transactions.push({
+            action_id: duplicateIds[i],
+            tx_id: '', // Empty for tombstoned actions
+            processed_at: existingAction.processed_at,
+          });
+        } else {
+          // Normal duplicate action
+          transactions.push({
+            action_id: duplicateIds[i],
+            tx_id: existingAction.tx_id || '',
+            processed_at: existingAction.processed_at,
+          });
+        }
+
+        if (!game_id && existingAction.game_id) {
+          game_id = existingAction.game_id;
+        }
+      }
+    }
+
+    const balance = await this.balanceService.getUserBalance(userId);
+
+    return {
+      balance,
+      game_id,
+      transactions,
+    };
+  }
+
+  private async checkDuplicateActions(actionIds: string[]): Promise<string[]> {
+    const keys = actionIds.map((id) => `action:${id}`);
+    const results = await this.redisService.mget(keys);
+
+    return actionIds.filter((_, index) => results[index] !== null);
   }
 }

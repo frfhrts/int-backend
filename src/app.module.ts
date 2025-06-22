@@ -8,6 +8,7 @@ import { TransactionsModule } from './modules/transactions/transactions.module';
 import { WalletGatewayModule } from './modules/wallet-gateway/wallet-gateway.module';
 import { CommonModule } from './common/common.module';
 import { NotFoundLoggingMiddleware } from './common/middleware/not-found-logging.middleware';
+import { WebsocketsModule } from './modules/websockets/websockets.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { NotFoundLoggingMiddleware } from './common/middleware/not-found-logging
     BalanceModule,
     TransactionsModule,
     WalletGatewayModule,
+    WebsocketsModule,
   ],
   controllers: [],
   providers: [RedisService],

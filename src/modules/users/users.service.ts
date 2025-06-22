@@ -55,7 +55,7 @@ export class UsersService {
       await this.redisService.set(balanceKey, DEFAULT_BALANCE * 100);
       this.usersList.set(newUser.user_id, newUser);
       console.log(newUser);
-      return newUser;
+      return { ...newUser, balance: DEFAULT_BALANCE * 100 };
     } catch (error) {
       this.logger.error('Error creating new user', error);
       throw error;
@@ -75,7 +75,7 @@ export class UsersService {
       firstname: user.firstname,
       lastname: user.lastname,
       nickname: user.nickname,
-      balance: userBalance,
+      balance: parseFloat(userBalance || '0'),
     };
   }
 

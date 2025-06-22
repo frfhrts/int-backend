@@ -6,6 +6,7 @@ import { BalanceModule } from '../balance/balance.module';
 import { UsersModule } from '../users/users.module';
 import { TransactionsModule } from '../transactions/transactions.module';
 import { RedisModule } from '../redis/redis.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { RedisModule } from '../redis/redis.module';
     UsersModule,
     TransactionsModule,
     RedisModule,
+    EventEmitterModule.forRoot(),
   ],
   providers: [WalletGatewayService],
   controllers: [WalletGatewayController],
