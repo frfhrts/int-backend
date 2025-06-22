@@ -321,6 +321,10 @@ export class WalletService {
   }
 
   async listGames() {
+    const cachedGames = await this.redisService.get('games');
+    if (cachedGames) {
+      return JSON.parse(cachedGames);
+    }
     const gcpUrl = this.configService.getOrThrow<string>('GCP_URL');
     const key = this.configService.getOrThrow<string>('GCP_KEY');
     const response = await firstValueFrom(
@@ -330,6 +334,7 @@ export class WalletService {
         },
       }),
     );
+    this.redisService.set('games', JSON.stringify(response.data), 3600); // 1 hour TTL
     return response.data;
   }
 
