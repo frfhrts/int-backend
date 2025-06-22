@@ -1,0 +1,9 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis-server
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    environment:
+      - REDIS_REPLICATION_MODE=master
