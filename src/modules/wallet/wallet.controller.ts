@@ -6,7 +6,7 @@ import {
   ApiBody,
   ApiQuery,
 } from '@nestjs/swagger';
-import { WalletGatewayService } from './wallet-gateway.service';
+import { WalletService } from './wallet.service';
 import { StartGameSessionDto } from './dtos/start-game-session.dto';
 import { StartGameSessionResponse } from './interfaces/start-game-session-response.interface';
 import { StartGameSessionResponseDto } from './dtos/start-game-session-response.dto';
@@ -16,8 +16,8 @@ import { RollbackRequestDto } from './dtos/rollback-request.dto';
 
 @ApiTags('')
 @Controller('')
-export class WalletGatewayController {
-  constructor(private readonly walletGatewayService: WalletGatewayService) {}
+export class WalletController {
+  constructor(private readonly walletService: WalletService) {}
 
   @Post('session')
   @ApiOperation({ summary: 'Start a new game session' })
@@ -38,7 +38,7 @@ export class WalletGatewayController {
   async startGameSession(
     @Body() sessionData: StartGameSessionDto,
   ): Promise<StartGameSessionResponse> {
-    return await this.walletGatewayService.startGameSession(sessionData);
+    return await this.walletService.startGameSession(sessionData);
   }
 
   @Get('games')
@@ -48,7 +48,7 @@ export class WalletGatewayController {
     description: 'Games listed successfully',
   })
   async listGames() {
-    return await this.walletGatewayService.listGames();
+    return await this.walletService.listGames();
   }
 
   @Post('play')
@@ -63,7 +63,7 @@ export class WalletGatewayController {
     description: 'Invalid request parameters',
   })
   async play(@Body() playRequest: PlayRequestDto) {
-    return await this.walletGatewayService.processPlayRequest(playRequest);
+    return await this.walletService.processPlayRequest(playRequest);
   }
 
   @Post('rollback')
@@ -74,12 +74,12 @@ export class WalletGatewayController {
     description: 'Game rolled back successfully',
   })
   async rollback(@Body() rollbackRequest: RollbackRequestDto) {
-    return await this.walletGatewayService.processRollback(rollbackRequest);
+    return await this.walletService.processRollback(rollbackRequest);
   }
 
   @Get('me')
   @ApiQuery({ name: 'user_id', type: String })
   async getUserInfo(@Query('user_id') userId: string) {
-    return await this.walletGatewayService.getUserInfo(userId);
+    return await this.walletService.getUserInfo(userId);
   }
 }

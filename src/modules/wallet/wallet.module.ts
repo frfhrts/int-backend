@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
-import { WalletGatewayService } from './wallet-gateway.service';
-import { WalletGatewayController } from './wallet-gateway.controller';
+import { WalletService } from './wallet.service';
+import { WalletController } from './wallet.controller';
 import { BalanceModule } from '../balance/balance.module';
 import { UsersModule } from '../users/users.module';
 import { TransactionsModule } from '../transactions/transactions.module';
@@ -17,7 +17,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     RedisModule,
     EventEmitterModule.forRoot(),
   ],
-  providers: [WalletGatewayService],
-  controllers: [WalletGatewayController],
+  providers: [WalletService],
+  controllers: [WalletController],
 })
-export class WalletGatewayModule {}
+export class WalletModule {}

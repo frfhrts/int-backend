@@ -5,7 +5,7 @@ import { RedisModule } from './modules/redis/redis.module';
 import { ConfigModule } from '@nestjs/config';
 import { BalanceModule } from './modules/balance/balance.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
-import { WalletGatewayModule } from './modules/wallet-gateway/wallet-gateway.module';
+import { WalletModule } from './modules/wallet/wallet.module';
 import { CommonModule } from './common/common.module';
 import { NotFoundLoggingMiddleware } from './common/middleware/not-found-logging.middleware';
 import { WebsocketsModule } from './modules/websockets/websockets.module';
@@ -20,7 +20,7 @@ import { WebsocketsModule } from './modules/websockets/websockets.module';
     RedisModule,
     BalanceModule,
     TransactionsModule,
-    WalletGatewayModule,
+    WalletModule,
     WebsocketsModule,
   ],
   controllers: [],

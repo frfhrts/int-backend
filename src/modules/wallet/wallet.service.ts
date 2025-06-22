@@ -20,8 +20,8 @@ import { Channels } from 'src/utils/enums/channels.enum';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
-export class WalletGatewayService {
-  private readonly logger = new Logger(WalletGatewayService.name);
+export class WalletService {
+  private readonly logger = new Logger(WalletService.name);
 
   constructor(
     private readonly balanceService: BalanceService,
@@ -217,6 +217,7 @@ export class WalletGatewayService {
         userId: rollbackRequest.user_id,
         balance: userBalance,
       });
+
       return {
         balance: userBalance,
         game_id: rollbackRequest.game_id,
