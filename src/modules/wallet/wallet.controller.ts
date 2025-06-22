@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpStatus, Get, Query } from '@nestjs/common';
+import { Controller, Post, Body, HttpStatus, Get, Query, Req } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -37,8 +37,9 @@ export class WalletController {
   })
   async startGameSession(
     @Body() sessionData: StartGameSessionDto,
+    @Req() req: Request,
   ): Promise<StartGameSessionResponse> {
-    return await this.walletService.startGameSession(sessionData);
+    return await this.walletService.startGameSession(sessionData, req);
   }
 
   @Get('games')

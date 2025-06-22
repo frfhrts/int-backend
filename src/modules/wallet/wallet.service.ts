@@ -41,9 +41,23 @@ export class WalletService {
       finished = finished || false;
       const user = await this.usersService.getUserById(user_id);
       if (!user) {
-        throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+        throw new HttpException(
+          { code: 101, message: 'User not found' },
+          HttpStatus.NOT_FOUND,
+        );
       }
       if (actions && actions.length > 0) {
+        // const checkDoubleBets = actions.filter(
+        //   (action) => action.action === 'bet',
+        // );
+        // if (checkDoubleBets.length > 1) {
+        //   const errorResponse = {
+        //     code: 100, // Use 100 for multiple bet scenarios
+        //     message: 'Not enough funds.',
+        //   };
+        //   throw new HttpException(errorResponse, 412);
+        // }
+
         const actionIds = actions.map((action) => action.action_id);
         const duplicateIds = await this.checkDuplicateActions(actionIds);
 
@@ -64,7 +78,7 @@ export class WalletService {
             'Throwing insufficient balance error - total bets exceed balance',
           );
           const errorResponse = {
-            code: 100, // Use 100 for multiple bet scenarios
+            code: 100,
             message: 'Not enough funds.',
             balance: currentBalance,
           };
@@ -73,7 +87,11 @@ export class WalletService {
       }
 
       const transactions: TransactionResponse[] = [];
+      console.log('Actions: ', playRequest);
+
       for (const action of actions || []) {
+        // throw new HttpException({ code: 100, message: 'User not found' }, 404);
+
         console.log('Processing action:', action);
         const checkTransaction =
           await this.transactionsService.getTransactionByActionId(
@@ -130,7 +148,11 @@ export class WalletService {
   }
 
   async processWin(userId: string, amount: number) {
-    await this.balanceService.updateUserBalance(userId, amount);
+    try {
+      await this.balanceService.updateUserBalance(userId, amount);
+    } catch (error) {
+      throw error;
+    }
   }
 
   async processRollback(rollbackRequest: RollbackRequestDto) {
@@ -225,30 +247,32 @@ export class WalletService {
       };
     } catch (error) {
       this.logger.error('Error while processing rollback:', error);
-      throw new HttpException(
-        'Error while processing rollback',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      throw error;
     }
   }
 
   async processBet(userId: string, amount: number) {
-    console.log('Processing bet for user:', userId, 'amount:', amount);
-    const usersBalance = await this.balanceService.getUserBalance(userId);
-    if (usersBalance < amount) {
-      console.log('Throwing insufficient balance error');
-      const errorResponse = {
-        code: 700,
-        message: 'Requested live game is not available right now',
-        balance: usersBalance,
-      };
-      throw new HttpException(errorResponse, 412);
+    try {
+      console.log('Processing bet for user:', userId, 'amount:', amount);
+      const usersBalance = await this.balanceService.getUserBalance(userId);
+      if (usersBalance < amount) {
+        console.log('Throwing insufficient balance error');
+        const errorResponse = {
+          code: 100,
+          message: 'Not enough funds.',
+          balance: usersBalance,
+        };
+        throw new HttpException(errorResponse, 400);
+      }
+      await this.balanceService.updateUserBalance(userId, -amount);
+    } catch (error) {
+      throw error;
     }
-    await this.balanceService.updateUserBalance(userId, -amount);
   }
 
   async startGameSession(
     sessionData: StartGameSessionDto,
+    req: Request,
   ): Promise<StartGameSessionResponse> {
     try {
       const gcpUrl = this.configService.getOrThrow<string>('GCP_URL');
@@ -260,32 +284,39 @@ export class WalletService {
         );
       }
 
+      const user = await this.usersService.getUserById(sessionData.userId);
+      if (!user) {
+        throw new HttpException(
+          { code: 101, message: 'User not found' },
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
       this.logger.log(
-        `Starting game session for game: ${sessionData.game}, user: ${sessionData.user.nickname}`,
+        `Starting game session for game: ${sessionData.game}, user: ${user.nickname}`,
       );
 
-      // Transform the request data to match GCP API format
       const gcpRequestData = {
         game_id: parseInt(sessionData.game),
-        locale: sessionData.locale,
-        client_type: sessionData.client_type,
-        ip: sessionData.ip,
-        currency: sessionData.currency,
-        rtp: sessionData.rtp,
+        locale: 'en',
+        client_type: this.getClientType(req),
+        ip: req.headers['x-forwarded-for'],
+        currency: 'TRY',
+        rtp: 90,
         url: {
-          return_url: sessionData.urls.return_url,
-          deposit_url: sessionData.urls.deposit_url,
+          return_url: 'https://test.com',
+          deposit_url: 'https://deposit.com',
         },
         user: {
-          user_id: sessionData.user.user_id,
-          nickname: sessionData.user.nickname,
-          firstname: sessionData.user.firstname,
-          lastname: sessionData.user.lastname,
-          country: sessionData.user.country,
-          city: sessionData.user.city,
-          date_of_birth: sessionData.user.date_of_birth,
-          registred_at: sessionData.user.registered_at, // Note: GCP expects "registred_at" (typo in their API)
-          gender: sessionData.user.gender,
+          user_id: user.user_id,
+          nickname: user.nickname,
+          firstname: user.firstname,
+          lastname: user.lastname,
+          country: user.country,
+          city: user.city,
+          date_of_birth: user.date_of_birth,
+          registred_at: user.registered_at,
+          gender: user.gender,
         },
       };
 
@@ -313,10 +344,7 @@ export class WalletService {
           error.response.status,
         );
       }
-      throw new HttpException(
-        'Failed to start game session',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      throw error;
     }
   }
 
@@ -408,5 +436,24 @@ export class WalletService {
     const results = await this.redisService.mget(keys);
 
     return actionIds.filter((_, index) => results[index] !== null);
+  }
+
+  getClientType(req: Request) {
+    const userAgent = req.headers['user-agent'] || '';
+    const ua = userAgent.toLowerCase();
+
+    // Mobile devices
+    if (
+      ua.includes('mobile') ||
+      ua.includes('android') ||
+      ua.includes('iphone') ||
+      ua.includes('ipod') ||
+      ua.includes('blackberry') ||
+      ua.includes('windows phone')
+    ) {
+      return 'mobile';
+    }
+    // Default to desktop
+    return 'desktop';
   }
 }

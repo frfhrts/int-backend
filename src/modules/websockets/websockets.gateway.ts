@@ -28,13 +28,7 @@ export class WebsocketsGateway {
       });
     if (!user) {
       const newUser = await this.usersService.createNewUser();
-      user = {
-        balance: newUser.balance,
-        user_id: newUser.user_id,
-        firstname: newUser.firstname,
-        lastname: newUser.lastname,
-        nickname: newUser.nickname,
-      };
+      user = newUser;
     }
     // 🎯 JOIN USER TO THEIR PERSONAL ROOM
     const userRoom = `user_${user.user_id}`;

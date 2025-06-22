@@ -42,9 +42,9 @@ export class UsersService {
     try {
       const newUser: User = {
         user_id: uuidv4(),
-        firstname: 'John',
-        lastname: 'Doe',
-        nickname: `JohnDoe-${uuidv4().slice(0, 8)}`,
+        nickname: 'TEST',
+        firstname: 'TEST_FN',
+        lastname: 'TEST_LN',
         city: 'New York',
         date_of_birth: '1990-01-01',
         registered_at: new Date().toISOString(),
@@ -71,10 +71,7 @@ export class UsersService {
       `${BALANCE_PREFIX}:${userId}`,
     );
     return {
-      user_id: user.user_id,
-      firstname: user.firstname,
-      lastname: user.lastname,
-      nickname: user.nickname,
+      ...user,
       balance: parseFloat(userBalance || '0'),
     };
   }

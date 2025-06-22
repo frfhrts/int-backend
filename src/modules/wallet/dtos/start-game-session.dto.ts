@@ -148,32 +148,6 @@ export class StartGameSessionDto {
   locale: string;
 
   @ApiProperty({
-    description: 'Player IP address (IPv4)',
-    example: '192.168.1.1',
-  })
-  @IsString()
-  @IsNotEmpty()
-  @Matches(
-    /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/,
-    {
-      message: 'ip must be a valid IPv4 address',
-    },
-  )
-  ip: string;
-
-  @ApiProperty({
-    description: 'Player device type',
-    example: 'mobile',
-    enum: ['mobile', 'desktop'],
-  })
-  @IsString()
-  @IsNotEmpty()
-  @IsIn(['mobile', 'desktop'], {
-    message: 'client_type must be either "mobile" or "desktop"',
-  })
-  client_type: string;
-
-  @ApiProperty({
     description: 'Parameters to redirect player',
     type: UrlsDto,
   })
@@ -182,19 +156,7 @@ export class StartGameSessionDto {
   @Type(() => UrlsDto)
   urls: UrlsDto;
 
-  @ApiProperty({
-    description: 'Player attributes',
-    type: UserDto,
-  })
-  @IsObject()
-  @ValidateNested()
-  @Type(() => UserDto)
-  user: UserDto;
-
-  @ApiProperty({
-    description: 'RTP for the game session',
-    example: 90,
-  })
-  @IsNumber()
-  rtp: number;
+  @IsString()
+  @IsNotEmpty()
+  userId: string;
 }
